@@ -26,8 +26,7 @@ const parseCode = (codeToParse,paramsToParse) => {
     let data = (esprima.parseScript(codeToParse));
     if (data.length === 0 || data.body.length<1)
         return '';
-    let vals=paramsToParse;
-    pv=eval('['+vals+']');
+    pv=eval('['+paramsToParse+']');
     data.body[0]=makeData(data.body[0]);
     return escodegen.generate(data);
 };
@@ -74,17 +73,30 @@ function parseVarDecl(data) {
     let decs = data.declarations;
     let ret;
     for (let i=0;i<decs.length;i++){
-        if (inFunc){
-            if(decs[i].init.type==='BinaryExpression')
-                varHash.set(decs[i].id.name,parseBinaryExpr(decs[i].init));
-            else if(varHash.has(decs[i].init.name)) {varHash.set(decs[i].id.name,varHash.get(decs[i].init.name));}
-            else varHash.set(decs[i].id.name,decs[i].init); ret='';}
+        if (decs[i].init===null)
+        {varHash.set(decs[i].id.name,null);ret= '';}
+        else
+        {if (inFunc){
+            help(decs[i]);
+            ret='';}
         else {
             plz(decs[i]);
             ret=data;
-        }
+        }}
     }
     return ret;
+}
+
+function help(data) {
+    if(data.init.type==='BinaryExpression')
+        varHash.set(data.id.name,parseBinaryExpr(data.init));
+    else if (data.init.type==='ArrayExpression')
+    {for(let i=0;i<data.init.elements.length;i++)
+        varHash.set(data.id.name+'['+i+']',data.init.elements[i]);
+    varHash.set(data.id.name,data.init);
+    }
+    else if(varHash.has(data.init.name)) {varHash.set(data.id.name,varHash.get(data.init.name));}
+    else varHash.set(data.id.name,data.init);
 }
 function plz(dec){
     if(dec.init.type === 'BinaryExpression'){
@@ -107,6 +119,9 @@ function check(data,side){
     }
     else if (data[side].type==='BinaryExpression'){
         data[side]=parseBinaryExpr(data[side]);
+    }
+    else if (data[side].type==='MemberExpression') {
+        data[side]=varHash.get(data[side].object.name+'['+data[side].property.raw+']');
     }
     return data;
 }
@@ -192,19 +207,41 @@ function parseAssExpr(data) {
 
 function stopPlz(data) {
     if(data.right.type === 'BinaryExpression'){varHash.set(data.left.name,parseBinaryExpr(data.right));}
-    else varHash.set(data.left.name,varHash.has(data.right.name) ? varHash.get(data.right.name) : data.right);
+    else if(data.right.type === 'ArrayExpression'){
+        for(let i=0;i<data.right.elements.length;i++) {
+            varHash.set(data.left.name+'['+i+']',data.right.elements[i]);
+        }
+    }
+    else varHash.set(data.left.name,varHash.has(data.right.name) ? helper(data) : data.right);
     data='';
     return data;
+}
+
+function helper(data) {
+    if(varHash.get(data.right.name).type==='ArrayExpression')
+    { let v=varHash.get(data.right.name);
+        for(let i=0;i<v.elements.length;i++) {
+            varHash.set(data.left.name+'['+i+']',v.elements[i]);
+        }
+        return v;
+    }
+    else return varHash.get(data.right.name);
 }
 
 function replace(data) {
     let tokens = data.split(' ');
     let line='';
     tokens.forEach(token=>{
-        Object.keys(params).forEach (p=>token=token.replace(p,JSON.stringify(pVals[p])));
+        Object.keys(params).forEach (p=>{
+            if(token in pVals)
+                token = token.replace(p,JSON.stringify(pVals[p]));
+            else if(token.replace(/\[|\(|\]|\)|;/g,'') in pVals)
+                token = token.replace(p,JSON.stringify(pVals[p]));
+        });
         line=line+' ' + token;
     });
     return line;
 }
+
 export {parseCode};
 export {getLines};

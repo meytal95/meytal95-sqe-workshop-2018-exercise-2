@@ -141,6 +141,37 @@ describe('The javascript parser', () => {
         );
     });
 
+    it('is handling function with binary in test', () => {
+        assert.equal(
+            JSON.stringify(parseCode('function g(x) {let z=x+1;if(2*z<2)return x;}','2')),
+            '"function g(x) {\\n' +
+            '    if (2 * (x + 1) < 2)\\n' +
+            '        return x;\\n' +
+            '}"'
+        );
+    });
+
+
+    it('is handling function with arrays 1', () => {
+        assert.equal(
+            JSON.stringify(parseCode('function g(x) {let z=[1,x,3];z=[1,2,3];if(z[1]<2)return x;}','2')),
+            '"function g(x) {\\n' +
+            '    if (2 < 2)\\n' +
+            '        return x;\\n' +
+            '}"'
+        );
+    });
+
+    it('is handling function with arrays 2', () => {
+        assert.equal(
+            JSON.stringify(parseCode('function g(x) {let z=[1,x,3]; let y; y=z; if(y[1]<2) return x;}','2')),
+            '"function g(x) {\\n' +
+            '    if (x < 2)\\n' +
+            '        return x;\\n' +
+            '}"'
+        );
+    });
+
     it('is listing ifs', () => {
         parseCode('function p (x) {let z=x; if (z<2) {return z;} else if (z>5) {return z+2;} else if (z==3) {return 2;} else {return 9;}} ','3');
         assert.equal(
@@ -148,4 +179,6 @@ describe('The javascript parser', () => {
             '[2]'
         );
     });
+
+
 });
